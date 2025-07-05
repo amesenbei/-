@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>出荷日計算ツール</title>
+  <style>
+    body { font-family: sans-serif; background: #f5f7fa; padding: 20px; color: #333; }
+    h1 { font-size: 24px; margin-bottom: 10px; }
+    .section { background: #fff; padding: 16px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .result { font-size: 16px; margin: 4px 0; }
+    .range-box { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .tag { background: #e0e0e0; border-radius: 16px; padding: 4px 10px; display: inline-block; margin: 4px; }
+    .tag span { margin-left: 8px; color: crimson; cursor: pointer; }
+    button { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    .add-btn { background-color: #00796b; color: #fff; }
+    .clear-btn { background-color: #ccc; margin-left: 10px; }
+    .toggle { margin-top: 10px; margin-bottom: 10px; }
+    .highlight-sat { color: #0077cc; }
+    .highlight-sun { color: crimson; }
+    .highlight-holiday { color: darkgreen; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>📦 出荷日計算ツール</h1>
+  <p id="current-date" style="margin-top: -10px; margin-bottom: 20px; color: #555;"></p>
+
+  <!-- 注文日セクション -->
+  <button class="toggle" onclick="toggleVisibility('order-section')">🛒 注文日を変更する</button>
+  <div id="order-section" style="display: none;">
+    <div class="section">
+      <h2>🛒 フェスム 注文日</h2>
+      注文日を指定：<input type="date" id="order-date-a">
+      <button onclick="setOrderDate('A')">適用</button>
+      <button onclick="resetOrderDate('A')">元に戻す</button>
+      <p>📅 注文日：<span id="today-a"></span></p>
+    </div>
+
+    <div class="section">
+      <h2>🛒 四国繊維 注文日</h2>
+      注文日を指定：<input type="date" id="order-date-b">
+      <button onclick="setOrderDate('B')">適用</button>
+      <button onclick="resetOrderDate('B')">元に戻す</button>
+      <p>📅 注文日：<span id="today-b"></span></p>
+    </div>
+  </div>
+
+  <!-- 休業期間セクション -->
+  <button class="toggle" onclick="toggleVisibility('holiday-section')">🎌 休業期間の入力を表示／非表示</button>
+  <div id="holiday-section" style="display: none;">
+    <div class="section">
+      <h2>🎌 フェスム 休業期間</h2>
+      <div class="range-box">
+        <input type="date" id="a-start"> ～ <input type="date" id="a-end">
+        <button class="add-btn" onclick="addRange('A')">追加</button>
+        <button class="clear-btn" onclick="clearRanges('A')">全クリア</button>
+      </div>
+      <div id="a-list"></div>
+    </div>
+
+    <div class="section">
+      <h2>🎌 四国繊維 休業期間</h2>
+      <div class="range-box">
+        <input type="date" id="b-start"> ～ <input type="date" id="b-end">
+        <button class="add-btn" onclick="addRange('B')">追加</button>
+        <button class="clear-btn" onclick="clearRanges('B')">全クリア</button>
+      </div>
+      <div id="b-list"></div>
+    </div>
+  </div>
+
+  <!-- 出荷日：A拠点 -->
+  <div class="section">
+    <h2>🏢 フェスム 出荷日</h2>
+    <div class="result" id="a-soonest"></div>
+    <div class="result" id="a-standard"></div>
+    <div class="result" id="a-regular"></div>
+  </div>
+
+  <!-- 出荷日：B拠点 -->
+  <div class="section">
+    <h2>🏢 四国繊維 出荷日</h2>
+    <div class="result" id="b-soonest"></div>
+    <div class="result" id="b-standard"></div>
+  </div>
+
+  <script>
+    let defaultTodayA = new Date();
+    let defaultTodayB = new Date();
+    let todayA = new Date(defaultTodayA);
+    let todayB = new Date(defaultTodayB);
+
+    let ranges = JSON.parse(localStorage.getItem("holidayRanges") || '{"A":[],"B":[]}');
+
+    const publicHolidays = [
+      "2025-01-01","2025-01-08","2025-02-11","2025-03-20",
+      "2025-04-29","2025-05-03","2025-05-04","2025-05-05",
+      "2025-07-21","2025-08-11","2025-09-16","2025-09-23",
+      "2025-10-14","2025-11-03","2025-11-23","2025-12-23"
+    ];
+
+    function saveRanges() {
+      localStorage.setItem("holidayRanges", JSON.stringify(ranges));
+    }
+
+    function isPublicHoliday(date) {
+      return publicHolidays.includes(date.toISOString().slice(0,10));
+    }
+
+    function inHoliday(date, site) {
+      const ymd = date.toISOString().slice(0,10);
+      return ranges[site].some(([s,e]) => ymd >= s && ymd <= e) || isPublicHoliday(date);
+    }
+
+    function formatDate(d) {
+      const base = d.toLocaleDateString("ja-JP",{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+      const dow = d.getDay();
+      if (isPublicHoliday(d)) return `<span class='highlight-holiday'>${base}</span>`;
+      if (dow === 0) return `<span class='highlight-sun'>${base}</span>`;
+      if (dow === 6) return `<span class='highlight-sat'>${base}</span>`;
+      return base;
+    }
+
+    function renderRanges(site) {
+      const container = document.getElementById(site.toLowerCase() + '-list');
+      container.innerHTML = '';
+      ranges[site].forEach((r,i) => {
+        const tag = document.createElement('div');
+        tag.className = 'tag';
+        tag.innerHTML = `🗓 ${r[0]} ～ ${r[1]} <span onclick="deleteRange('${site}',${i})">×</span>`;
+        container.appendChild(tag);
+      });
+    }
+    function addRange(site) {
+      const start = document.getElementById(site.toLowerCase() + '-start').value;
+      const end   = document.getElementById(site.toLowerCase() + '-end'  ).value;
+      if (!start || !end) return alert("開始日と終了日を入力してください");
+      ranges[site].push([start,end]);
+      saveRanges(); renderRanges(site); refresh();
+    }
+    function clearRanges(site) {
+      if (!confirm("本当にすべて削除しますか？")) return;
+      ranges[site]=[]; saveRanges(); renderRanges(site); refresh();
+    }
+    function deleteRange(site,index) {
+      ranges[site].splice(index,1); saveRanges(); renderRanges(site); refresh();
+    }
+
+    function addBusinessDays(startDate, days, site, excludeDays){
+      let count=0; const d=new Date(startDate);
+      while(count<days){
+        d.setDate(d.getDate()+1);
+        const dow=d.getDay();
+        if(!excludeDays.includes(dow) && !inHoliday(d,site)){ count++; }
+      }
+      return d;
+    }
+
+    function refresh () {
+      /* ---------- 共通：ヘッダー・注文日表示 ---------- */
+      document.getElementById("current-date").innerHTML =
+        "🗓 本日: " + formatDate(new Date());
+
+      document.getElementById("today-a").innerHTML = formatDate(todayA);
+      document.getElementById("today-b").innerHTML = formatDate(todayB);
+
+      renderRanges('A');
+      renderRanges('B');
+
+      /* ---------- フェスム（A拠点） ---------- */
+      // 🎯 指定出荷 = 注文日＋10営業日（土曜OK）
+      const standardA = addBusinessDays(todayA, 10, 'A', [0]);
+      // 🔁 定期変更 = 注文日＋9営業日（土曜OK）
+      const regularA  = addBusinessDays(todayA, 9, 'A', [0]);
+      // 🚀 最短出荷 = 翌営業日（土曜OK）
+      const soonestA  = addBusinessDays(todayA, 1, 'A', [0]);
+
+      document.getElementById("a-soonest").innerHTML  =
+        "🚀 最短出荷: " + formatDate(soonestA);
+      document.getElementById("a-standard").innerHTML =
+        "🎯 指定出荷: " + formatDate(standardA);
+      document.getElementById("a-regular").innerHTML  =
+        "🔁 定期変更: " + formatDate(regularA);
+
+      /* ---------- 四国繊維（B拠点） ---------- */
+      // 中2営業日後にデータ収集
+      const collectedB = addBusinessDays(todayB, 2, 'B', [0, 6]);
+      // さらに翌営業日に出荷（最短）
+      const soonestB = addBusinessDays(collectedB, 1, 'B', [0, 6]);
+
+      // 🌟【修正ポイント】最短出荷日 + カレンダー日で8日
+      const standardB = new Date(soonestB);
+      standardB.setDate(standardB.getDate() + 8);
+
+      document.getElementById("b-soonest").innerHTML =
+        "🚀 最短出荷: " + formatDate(soonestB);
+      document.getElementById("b-standard").innerHTML =
+        "🎯 指定出荷: " + formatDate(standardB);
+    }
+
+    function toggleVisibility(id){
+      const el=document.getElementById(id);
+      el.style.display = (el.style.display==='none') ? 'block':'none';
+    }
+    function setOrderDate(site){
+      const input=document.getElementById("order-date-"+site.toLowerCase()).value;
+      if(!input) return alert("注文日を選んでください。");
+      if(site==='A') todayA=new Date(input);
+      if(site==='B') todayB=new Date(input);
+      refresh();
+    }
+    function resetOrderDate(site){
+      if(site==='A') todayA=new Date(defaultTodayA);
+      if(site==='B') todayB=new Date(defaultTodayB);
+      document.getElementById("order-date-"+site.toLowerCase()).value="";
+      refresh();
+    }
+
+    refresh();
+  </script>
+</body>
+</html>
