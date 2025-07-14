@@ -182,10 +182,8 @@
         "🔁 定期変更: " + formatDate(regularA);
 
       /* ---------- 四国繊維（B拠点） ---------- */
-      // 中2営業日後にデータ収集
-      const collectedB = addBusinessDays(todayB, 2, 'B', [0, 6]);
-      // さらに翌営業日に出荷（最短）
-      const soonestB = addBusinessDays(collectedB, 1, 'B', [0, 6]);
+     // 🚀 最短出荷 = 注文日＋2営業日（土日除く）
+const soonestB = addBusinessDays(todayB, 2, 'B', [0, 6]);
 
       // 🌟【修正ポイント】最短出荷日 + カレンダー日で8日
       const standardB = new Date(soonestB);
