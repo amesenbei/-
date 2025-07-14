@@ -181,18 +181,17 @@
       document.getElementById("a-regular").innerHTML  =
         "🔁 定期変更: " + formatDate(regularA);
 
-      /* ---------- 四国繊維（B拠点） ---------- */
-     // 🚀 最短出荷 = 注文日＋2営業日（土日除く）
+     /* ---------- 四国繊維（B拠点） ---------- */
+// 🚀 最短出荷 = 注文日＋2営業日（土日除く）
 const soonestB = addBusinessDays(todayB, 2, 'B', [0, 6]);
 
-      // 🌟【修正ポイント】最短出荷日 + カレンダー日で8日
-      const standardB = new Date(soonestB);
-      standardB.setDate(standardB.getDate() + 8);
+// 🎯 指定出荷 = フェスムと同じにする
+const standardB = new Date(standardA);
 
-      document.getElementById("b-soonest").innerHTML =
-        "🚀 最短出荷: " + formatDate(soonestB);
-      document.getElementById("b-standard").innerHTML =
-        "🎯 指定出荷: " + formatDate(standardB);
+document.getElementById("b-soonest").innerHTML =
+  "🚀 最短出荷: " + formatDate(soonestB);
+document.getElementById("b-standard").innerHTML =
+  "🎯 指定出荷: " + formatDate(standardB);
     }
 
     function toggleVisibility(id){
